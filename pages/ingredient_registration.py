@@ -89,7 +89,7 @@ def ingredient_registration_page():
         st.session_state.current_page = "메인 페이지"
         st.rerun()
     
-    st.title("📸 식재료 등록하기")
+    st.title("🍅 식재료 등록하기")
     st.markdown("장바구니 사진을 업로드하여 재료를 자동으로 등록하세요.")
     st.markdown("---")
     

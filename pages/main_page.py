@@ -85,7 +85,7 @@ def show_main_menu():
     """, unsafe_allow_html=True)
     
     # 버튼들을 세로로 배치
-    if st.button("📸\n\n재료 등록하기", use_container_width=True, key="register_btn"):
+    if st.button("🍅\n\n재료 등록하기", use_container_width=True, key="register_btn"):
         st.session_state.current_page = "재료 등록하기"
         st.rerun()
     
