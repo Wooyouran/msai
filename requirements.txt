@@ -3,3 +3,8 @@ openai
 python-dotenv
 pandas
 azure-storage-blob
+requests
+beautifulsoup4
+lxml
+azure-search-documents
+azure-core
