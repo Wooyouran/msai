@@ -1,152 +1,174 @@
 """
 레시피 추천 페이지 모듈
-현재 보유한 재료로 만들 수 있는 레시피를 추천받는 기능
+Azure AI Search를 사용하여 보유한 재료로 만들 수 있는 레시피를 검색
 """
 
 import streamlit as st
 import pandas as pd
 import os
-from utils.chatgpt_analyzer import get_recipe_recommendations
+from utils.azure_search_client import get_search_client
+from utils.blob_storage_manager import BlobStorageManager
+
+def display_recipe_card(recipe, index):
+    """레시피 카드를 보기좋게 표시하는 함수"""
+    with st.container():
+        # 전체 카드를 하나의 HTML 박스로 구성
+        card_html = f"""
+        <div style="
+            border: 1px solid #e0e0e0; 
+            border-radius: 10px; 
+            padding: 20px; 
+            margin: 10px 0; 
+            background-color: #f9f9f9;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        ">
+            <h3 style="margin-top: 0; color: #2c3e50;">🍽️ {recipe['title']}</h3>
+        """
+        
+        # URL이 있으면 링크 추가
+        if recipe.get('url'):
+            card_html += f'<p><a href="{recipe["url"]}" target="_blank">🔗 원본 레시피 보기</a></p>'
+        
+        # 재료와 조리방법 섹션
+        card_html += """
+            <div style="display: flex; gap: 20px; margin-top: 15px;">
+                <div style="flex: 1;">
+                    <h4 style="color: #34495e; margin-bottom: 10px;">📝 필요한 재료:</h4>
+                    <div style="background-color: #ffffff; padding: 10px; border-radius: 5px; height: 200px; overflow-y: auto; border: 1px solid #ddd;">
+        """
+        
+        # 재료 목록 추가
+        if recipe.get('ingredients'):
+            if isinstance(recipe['ingredients'], list):
+                ingredients_text = ", ".join(recipe['ingredients'])
+            else:
+                ingredients_text = str(recipe['ingredients'])
+            card_html += ingredients_text
+        
+        card_html += """
+                    </div>
+                </div>
+                <div style="flex: 1;">
+                    <h4 style="color: #34495e; margin-bottom: 10px;">📖 조리 방법:</h4>
+                    <div style="background-color: #ffffff; padding: 10px; border-radius: 5px; height: 200px; overflow-y: auto; border: 1px solid #ddd;">
+        """
+        
+        # 조리 방법 추가
+        if recipe.get('steps'):
+            if isinstance(recipe['steps'], list):
+                for i, step in enumerate(recipe['steps'], 1):
+                    step_formatted = step.replace("|", "<br>")
+                    card_html += f"<p><strong>{i}.</strong> {step_formatted}</p>"
+            else:
+                steps_formatted = str(recipe['steps']).replace("|", "<br>")
+                card_html += f"<p>{steps_formatted}</p>"
+        
+        card_html += """
+                    </div>
+                </div>
+            </div>
+        </div>
+        """
+        
+        st.markdown(card_html, unsafe_allow_html=True)
 
 def recipe_recommendation_page():
-    """레시피 추천 받기 페이지"""
+    """Azure AI Search를 사용한 레시피 검색 페이지"""
     # 뒤로가기 버튼
     if st.button("🏠 메인으로 돌아가기", type="secondary"):
         st.session_state.current_page = "메인 페이지"
         st.rerun()
     
-    st.title("🍽️ 레시피 추천")
-    st.markdown("현재 보유한 재료로 만들 수 있는 레시피를 추천받으세요.")
+    st.title("🔍 레시피 추천")
+    st.markdown("냉장고에 보관 중인 재료를 활용할 수 있는 레시피를 추천합니다.")
     st.markdown("---")
     
-    # CSV 파일 경로
-    csv_path = "./pages/data/ingredients_data.csv"
-    
-    if not os.path.exists(csv_path):
-        st.info("📝 먼저 재료를 등록해주세요!")
-        return
-    
     try:
-        # CSV 파일 읽기
-        df = pd.read_csv(csv_path)
+
+        blob_name = "data/ingredients_data.csv"
+        blob_manager = BlobStorageManager()
+        df = blob_manager.download_csv_to_dataframe(blob_name)
         
         if df.empty:
             st.info("📝 먼저 재료를 등록해주세요!")
             return
         
-        ingredients_for_api = []
-        for _, row in df.iterrows():
-            ingredients_for_api.append({
-                "name": row['name'],
-                "quantity": row['quantity'],
-                "unit": row['unit']
-            })
-
-        # 레시피 추천 옵션
-        col1, col2 = st.columns(2)
+        # df에서 name만 추출
+        ingredient_names = df['name'].tolist()
         
-        with col1:
-            recipe_type = st.selectbox(
-                "선호하는 요리 종류",
-                ["한식", "중식", "일식", "양식", "아무거나"],
-                key="recipe_type"
+        # 현재 보유한 재료 표시 및 선택
+        st.subheader("🍊 현재 보유한 재료")
+        st.markdown("추천에 사용할 재료를 선택하세요:")
+        
+        # 체크박스로 재료 선택
+        selected_ingredients = []
+        
+        
+        # 각 재료별 체크박스
+        for ingredient in ingredient_names:
+            # 기본값은 True (모든 재료 선택)
+            is_selected = st.checkbox(
+                f"**{ingredient}**",
+                value=st.session_state.get(f"ingredient_{ingredient}", True),
+                key=f"ingredient_{ingredient}"
             )
+            if is_selected:
+                selected_ingredients.append(ingredient)
         
-        with col2:
-            difficulty = st.selectbox(
-                "요리 난이도",
-                ["쉬움", "보통", "어려움", "상관없음"],
-                key="difficulty"
-            )
+        # 선택된 재료 요약 표시
+        if selected_ingredients:
+            st.markdown(f"**선택된 재료 ({len(selected_ingredients)}개):** {', '.join(selected_ingredients)}")
+        else:
+            st.warning("⚠️ 검색할 재료를 선택해주세요!")
         
-        # 추가 요청사항
-        additional_request = st.text_area(
-            "추가 요청사항 (선택사항)",
-            placeholder="예: 매운 음식, 간단한 요리, 특정 재료 제외 등",
-            height=80
-        )
+        st.markdown("---")
         
-        # 레시피 추천 버튼
-        if st.button("🍳 레시피 추천 받기", type="primary", use_container_width=True):
-            if len(ingredients_for_api) == 0:
-                st.error("❌ 추천받을 재료가 없습니다.")
+        # 레시피 검색 버튼
+        if st.button("🔍 레시피 검색하기", type="primary", use_container_width=True):
+            if len(selected_ingredients) == 0:
+                st.error("❌ 검색할 재료를 선택해주세요!")
                 return
             
-            with st.spinner("🤖 AI가 맞춤 레시피를 생성하는 중입니다..."):
-                # 사용자 선택사항을 프롬프트에 추가
-                enhanced_ingredients = ingredients_for_api.copy()
-                
-                # 추가 요청사항이 있으면 API 호출 전에 처리
-                if recipe_type != "아무거나" or difficulty != "상관없음" or additional_request.strip():
-                    preference_text = f"\n\n추가 요청사항:\n"
-                    if recipe_type != "아무거나":
-                        preference_text += f"- 요리 종류: {recipe_type}\n"
-                    if difficulty != "상관없음":
-                        preference_text += f"- 난이도: {difficulty}\n"
-                    if additional_request.strip():
-                        preference_text += f"- 기타: {additional_request}\n"
-                    
-                    # 임시로 첫 번째 재료에 preference 정보 추가 (API 함수 수정 필요)
-                    enhanced_ingredients.append({
-                        "name": "preference_info",
-                        "quantity": preference_text,
-                        "unit": ""
-                    })
-                
+            with st.spinner("🔍 Azure AI Search에서 레시피를 검색하는 중입니다..."):
                 try:
-                    # API 호출
-                    recipe_result = get_recipe_recommendations(enhanced_ingredients)
+                    # Azure Search 클라이언트 가져오기
+                    search_client = get_search_client()
                     
-                    if recipe_result and not recipe_result.startswith("❌"):
+                    # 엄격한 검색 (선택된 재료 포함) 사용 - 기본 3개 검색
+                    recipes = search_client.search_recipes_by_ingredients(selected_ingredients, 3)
+                    
+                    if recipes:
                         st.markdown("---")
-                        st.subheader("🍳 추천 레시피")
+                        st.subheader(f"🍳 추천 결과")
                         
-                        # 결과를 마크다운으로 표시
-                        st.markdown(recipe_result)
-                        
-                        # 저장 옵션
-                        st.markdown("---")
-                        col1, col2 = st.columns(2)
-                        
-                        with col1:
-                            if st.button("💾 레시피 저장", type="secondary"):
-                                # 세션 상태에 레시피 저장
-                                if 'saved_recipes' not in st.session_state:
-                                    st.session_state.saved_recipes = []
-                                
-                                recipe_data = {
-                                    "timestamp": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"),
-                                    "ingredients_used": [ing["name"] for ing in ingredients_for_api if ing["name"] != "preference_info"],
-                                    "recipe_content": recipe_result
-                                }
-                                
-                                st.session_state.saved_recipes.append(recipe_data)
-                                st.success("✅ 레시피가 저장되었습니다!")
-                        
-                        with col2:
-                            if st.button("🔄 다른 레시피 추천", type="secondary"):
-                                st.rerun()
+                        # 각 레시피를 카드 형태로 표시
+                        for i, recipe in enumerate(recipes):
+                            display_recipe_card(recipe, i)
+                            
+                        # 검색 결과가 적을 때 안내 메시지
+                        if len(recipes) < 3:
+                            st.info(f"💡 3개의 레시피를 요청했지만 {len(recipes)}개만 찾았습니다. 선택한 모든 재료가 포함된 레시피만 검색됩니다.")
                     
                     else:
-                        st.error(f"레시피 추천 중 오류가 발생했습니다:\n{recipe_result}")
+                        st.warning("😅 검색 결과가 없습니다.")
+                        st.markdown("""
+                        **다음을 확인해보세요:**
+                        - Azure AI Search 설정이 올바른지 확인
+                        - 검색 인덱스에 데이터가 있는지 확인
+                        - 선택한 모든 재료가 포함된 레시피가 인덱스에 있는지 확인
+                        - 더 적은 재료를 선택해보세요
+                        """)
                         
                 except Exception as e:
-                    st.error(f"❌ 레시피 추천 중 오류가 발생했습니다: {str(e)}")
-        
-        # 저장된 레시피 표시
-        if hasattr(st.session_state, 'saved_recipes') and st.session_state.saved_recipes:
-            st.markdown("---")
-            st.subheader("📚 저장된 레시피")
-            
-            for i, saved_recipe in enumerate(reversed(st.session_state.saved_recipes)):
-                with st.expander(f"📝 레시피 #{len(st.session_state.saved_recipes)-i} ({saved_recipe['timestamp']})"):
-                    st.markdown(f"**사용된 재료:** {', '.join(saved_recipe['ingredients_used'])}")
-                    st.markdown("---")
-                    st.markdown(saved_recipe['recipe_content'])
-                    
-                    if st.button(f"🗑️ 삭제", key=f"delete_recipe_{i}"):
-                        st.session_state.saved_recipes.remove(saved_recipe)
-                        st.rerun()
+                    st.error(f"❌ 레시피 검색 중 오류가 발생했습니다: {str(e)}")
+                    st.markdown("""
+                    **오류 해결 방법:**
+                    - Azure Search 연결 설정을 확인해주세요
+                    - 환경변수나 Streamlit secrets에서 다음 값들이 설정되어 있는지 확인:
+                      - `AZURE_SEARCH_ENDPOINT`
+                      - `AZURE_SEARCH_KEY`
+                      - `AZURE_SEARCH_INDEX_NAME`
+                    """)
         
         # 새로고침 버튼
         st.markdown("---")
