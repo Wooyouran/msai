@@ -7,15 +7,19 @@ import streamlit as st
 import pandas as pd
 import os
 from datetime import datetime
+from utils.blob_storage_manager import BlobStorageManager
 
-def save_updated_ingredients(df, csv_path):
+def save_updated_ingredients(df):
     """수정된 재료 데이터를 CSV 파일에 저장"""
     try:
         # 수량이 0 이하인 재료는 제거
         df = df[df['quantity'] > 0]
         
-        # CSV 파일로 저장
-        df.to_csv(csv_path, index=False, encoding='utf-8-sig')
+        blob_name = "data/ingredients_data.csv"
+        blob_manager = BlobStorageManager()
+        
+        blob_manager.upload_csv_from_dataframe(df, blob_name)
+        
         return True, len(df)
     except Exception as e:
         st.error(f"CSV 저장 중 오류 발생: {e}")
@@ -32,16 +36,12 @@ def ingredient_usage_page():
     st.markdown("사용한 재료의 수량을 입력하여 재고에서 차감하세요.")
     st.markdown("---")
     
-    # CSV 파일 경로
-    csv_path = "./pages/data/ingredients_data.csv"
-    
-    if not os.path.exists(csv_path):
-        st.info("📝 사용할 재료가 없습니다. 먼저 재료를 등록해주세요!")
-        return
     
     try:
-        # CSV 파일 읽기
-        df = pd.read_csv(csv_path)
+        
+        blob_name = "data/ingredients_data.csv"
+        blob_manager = BlobStorageManager()
+        df = blob_manager.download_csv_to_dataframe(blob_name)
         
         if df.empty:
             st.info("📝 사용할 재료가 없습니다. 먼저 재료를 등록해주세요!")
@@ -134,7 +134,7 @@ def ingredient_usage_page():
                                 updated_df.loc[idx, 'quantity'] = new_quantity
                         
                         # CSV 파일 저장
-                        success, remaining_count = save_updated_ingredients(updated_df, csv_path)
+                        success, remaining_count = save_updated_ingredients(updated_df)
                         
                         if success:
                             st.success(f"✅ {total_used_items}개 재료 사용이 완료되었습니다!")

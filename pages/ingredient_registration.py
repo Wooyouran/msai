@@ -9,7 +9,32 @@ import tempfile
 import pandas as pd
 import json
 from datetime import datetime, timedelta
+from typing import List
 from utils.chatgpt_analyzer import analyze_image_with_chatgpt5
+from utils.blob_storage_manager import BlobStorageManager
+
+
+def save_data_to_blob(ingredients_data:List[dict]):
+    """재료 데이터를 Blob Storage에 저장"""
+    try:
+        blob_name = "data/ingredients_data.csv"
+        blob_manager = BlobStorageManager()
+        existing_df = blob_manager.download_csv_to_dataframe(blob_name)
+        
+        if existing_df.empty or len(existing_df.columns) == 0:
+            combined_df = pd.DataFrame(ingredients_data)
+        else:
+            new_df = pd.DataFrame(ingredients_data)
+            combined_df = pd.concat([existing_df, new_df], ignore_index=True)
+        
+        blob_manager.upload_csv_from_dataframe(combined_df, blob_name)
+        
+        return True
+        
+    except Exception as e:
+        st.error(f"Blob Storage 저장 중 오류 발생: {e}")
+        return False
+
 
 def save_ingredients_to_csv(ingredients_data, filename="ingredients_data.csv"):
     """재료 데이터를 CSV 파일에 저장"""
@@ -264,7 +289,7 @@ def ingredient_registration_page():
                             #TODO: 기존 데이터와 확인 비교하여 넣기 (PK: name, expiration_date)
                             csv_data = []
                             for item in st.session_state.ingredient_table_data:
-                                # 현재 날짜에 유통기한 일수를 더해서 실제 만료일 계산
+
                                 expiry_days = int(item['유통기한(일)'])
                                 expiration_date = datetime.now() + timedelta(days=expiry_days)
                                 
@@ -277,18 +302,22 @@ def ingredient_registration_page():
                                     'date_added': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                                 })
                             
-                            # data 디렉토리가 없으면 생성
-                            data_dir = "./pages/data"
-                            if not os.path.exists(data_dir):
-                                os.makedirs(data_dir)
+                            # # data 디렉토리가 없으면 생성
+                            # data_dir = "./pages/data"
+                            # if not os.path.exists(data_dir):
+                            #     os.makedirs(data_dir)
                             
-                            path = os.path.join(data_dir, "ingredients_data.csv")
+                            # path = os.path.join(data_dir, "ingredients_data.csv")
                             
-                            # 저장 전 데이터 확인
-                            st.info(f"저장할 데이터: {len(csv_data)}개 재료")
+                            # # 저장 전 데이터 확인
+                            # st.info(f"저장할 데이터: {len(csv_data)}개 재료")
                             
-                            if save_ingredients_to_csv(csv_data, path):
+                            # if save_ingredients_to_csv(csv_data, path):
+                            #     st.success(f"✅ 재료 목록에 성공적으로 추가되었습니다.")
+                                
+                            if save_data_to_blob(csv_data):
                                 st.success(f"✅ 재료 목록에 성공적으로 추가되었습니다.")
+                                
                                 
                             else:
                                 st.error("❌ CSV 저장에 실패했습니다.")

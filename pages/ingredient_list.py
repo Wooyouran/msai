@@ -7,6 +7,7 @@ import streamlit as st
 import pandas as pd
 import os
 from datetime import datetime, timedelta
+from utils.blob_storage_manager import BlobStorageManager
 
 def get_status_and_color(expiration_date):
     """유통기한을 기준으로 상태와 색상을 반환"""
@@ -36,16 +37,19 @@ def ingredient_list_page():
     st.markdown("현재 등록된 재료 목록을 확인하세요.")
     st.markdown("---")
     
-    # CSV 파일 경로
-    csv_path = "./pages/data/ingredients_data.csv"
+    # # CSV 파일 경로
+    # csv_path = "./pages/data/ingredients_data.csv"
     
-    if not os.path.exists(csv_path):
-        st.info("📝 아직 등록된 재료가 없습니다. '재료 등록하기'에서 재료를 추가해보세요!")
-        return
+    # if not os.path.exists(csv_path):
+    #     st.info("📝 아직 등록된 재료가 없습니다. '재료 등록하기'에서 재료를 추가해보세요!")
+    #     return
     
     try:
-        # CSV 파일 읽기
-        df = pd.read_csv(csv_path)
+        
+        blob_name = "data/ingredients_data.csv"
+        blob_manager = BlobStorageManager()
+        df = blob_manager.download_csv_to_dataframe(blob_name)
+        
         
         if df.empty:
             st.info("📝 아직 등록된 재료가 없습니다. '재료 등록하기'에서 재료를 추가해보세요!")
