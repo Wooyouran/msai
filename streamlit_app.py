@@ -7,7 +7,6 @@ Streamlit ChatGPT-5 멀티모달 분석기
 
 import streamlit as st
 import os
-from dotenv import load_dotenv
 
 # 페이지 모듈들 import
 from pages.main_page import show_main_menu
@@ -16,13 +15,11 @@ from pages.ingredient_list import ingredient_list_page
 from pages.ingredient_usage import ingredient_usage_page
 from pages.recipe_recommendation import recipe_recommendation_page
 
-# .env 파일 로드
-load_dotenv()
 
 # 페이지 설정
 st.set_page_config(
-    page_title="냉장고 재료 관리 시스템",
-    page_icon="🥬",
+    page_title="냉장고 식재료 관리 어시스턴트",
+    page_icon="🥑",
     layout="wide",
     initial_sidebar_state="collapsed"
 )

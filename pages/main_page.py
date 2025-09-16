@@ -76,10 +76,10 @@ def show_main_menu():
         margin-bottom: 2rem;
     ">
         <h1 style="font-size: 2.2rem; font-weight: bold; color: #333; margin-bottom: 1rem;">
-            🥬 냉장고 재료 관리 시스템
+            🥑 냉장고 식재료 관리 어시스턴트
         </h1>
         <p style="font-size: 1.1rem; color: #666; margin: 0;">
-            ChatGPT-5 멀티모달 분석기를 활용한 스마트 냉장고 관리
+            낭비 없고 효율적인 식재료 관리를 도와드립니다!
         </p>
     </div>
     """, unsafe_allow_html=True)
