@@ -1,7 +1,4 @@
-# azure-ai-vision-imageanalysis>=1.0.0
-# azure-core>=1.29.0
-# openai>=1.0.0
-# streamlit>=1.28.0
 streamlit
 openai
 python-dotenv
+pandas
