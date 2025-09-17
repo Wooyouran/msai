@@ -33,7 +33,7 @@
 **[ Azure ]**
 ```
 - Memory: Blob Storage
-- RAG: Search Service
+- Search: Search Service
 - Web: Web App
 - LLM: AI Foundry (gpt-5/2025-08-07)
 ```
